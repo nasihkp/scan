@@ -1,13 +1,13 @@
-import { motion } from 'motion/react';
+import { motion } from 'framer-motion';
 import { ScanLine } from 'lucide-react';
 
 interface SplashScreenProps {
   onComplete: () => void;
 }
 
-export function SplashScreen({ onComplete }: SplashScreenProps) {
+export function SplashScreen({ onComplete: _ }: SplashScreenProps) {
   return (
-    <motion.div 
+    <motion.div
       className="h-screen w-full bg-gradient-to-br from-blue-600 to-blue-700 flex flex-col items-center justify-center text-white"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -22,8 +22,8 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
         <div className="w-24 h-24 bg-white rounded-3xl flex items-center justify-center mb-6 shadow-2xl">
           <ScanLine className="w-12 h-12 text-blue-600" strokeWidth={2.5} />
         </div>
-        
-        <motion.h1 
+
+        <motion.h1
           className="text-4xl font-bold mb-3"
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
@@ -31,8 +31,8 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
         >
           SmartScan
         </motion.h1>
-        
-        <motion.p 
+
+        <motion.p
           className="text-blue-100 text-lg"
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}

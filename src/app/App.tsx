@@ -1,99 +1,142 @@
-import { useState } from 'react';
-import { SplashScreen } from './components/SplashScreen';
-import { OnboardingScreens } from './components/OnboardingScreens';
-import { HomeScreen } from './components/HomeScreen';
-import { CameraScanScreen } from './components/CameraScanScreen';
-import { EditDocumentScreen } from './components/EditDocumentScreen';
-import { PDFPreviewScreen } from './components/PDFPreviewScreen';
-import { SaveShareScreen } from './components/SaveShareScreen';
-import { SettingsScreen } from './components/SettingsScreen';
+import { useState, useEffect } from "react";
+import { SplashScreen } from "./components/SplashScreen";
+import { generatePDF } from "./utils/pdfGenerator";
+import { OnboardingScreens } from "./components/OnboardingScreens";
+import { HomeScreen } from "./components/HomeScreen";
+import { CameraScanScreen } from "./components/CameraScanScreen";
+import { EditDocumentScreen } from "./components/EditDocumentScreen";
+import { PDFPreviewScreen } from "./components/PDFPreviewScreen";
+import { SaveShareScreen } from "./components/SaveShareScreen";
+import { SettingsScreen } from "./components/SettingsScreen";
 
-export type Screen = 
-  | 'splash' 
-  | 'onboarding' 
-  | 'home' 
-  | 'camera' 
-  | 'edit' 
-  | 'pdf-preview' 
-  | 'save-share' 
-  | 'settings';
+export type Screen =
+  | "splash"
+  | "onboarding"
+  | "home"
+  | "camera"
+  | "edit"
+  | "pdf-preview"
+  | "save-share"
+  | "settings";
+
+interface ScannedDoc {
+  id: string;
+  image: string;
+  date: string;
+}
 
 export default function App() {
-  const [currentScreen, setCurrentScreen] = useState<Screen>('splash');
+  const [currentScreen, setCurrentScreen] = useState<Screen>("splash");
   const [isDarkMode, setIsDarkMode] = useState(false);
-  const [scannedImage, setScannedImage] = useState<string | null>(null);
 
-  // Auto-transition from splash to onboarding
-  useState(() => {
-    const timer = setTimeout(() => {
-      if (currentScreen === 'splash') {
-        setCurrentScreen('onboarding');
-      }
-    }, 2500);
-    return () => clearTimeout(timer);
+  /* SCANNED DOCUMENTS */
+  const [scannedDocs, setScannedDocs] = useState<ScannedDoc[]>(() => {
+    const saved = localStorage.getItem("scannedDocs");
+    return saved ? JSON.parse(saved) : [];
   });
+  const [activeImage, setActiveImage] = useState<string | null>(null);
+
+  /* PERSISTENCE */
+  useEffect(() => {
+    localStorage.setItem("scannedDocs", JSON.stringify(scannedDocs));
+  }, [scannedDocs]);
+
+  /* PDF OUTPUT */
+  const [pdfUrl, setPdfUrl] = useState("");
+  const [fileName, setFileName] = useState("");
+
+  /* SPLASH AUTO TRANSITION */
+  useEffect(() => {
+    if (currentScreen !== "splash") return;
+    const timer = setTimeout(() => setCurrentScreen("onboarding"), 2500);
+    return () => clearTimeout(timer);
+  }, [currentScreen]);
+
+  /* HANDLE NEW SCAN */
+  const handleNewScan = (image: string) => {
+    setActiveImage(image);
+    setScannedDocs(prev => [
+      {
+        id: crypto.randomUUID(),
+        image,
+        date: new Date().toLocaleString(),
+      },
+      ...prev,
+    ]);
+  };
 
   return (
-    <div className={`min-h-screen ${isDarkMode ? 'dark bg-gray-900' : 'bg-gray-50'}`}>
-      {/* Mobile container - optimized for 360x800 */}
-      <div className="max-w-[360px] mx-auto min-h-screen bg-white dark:bg-gray-900 relative overflow-hidden shadow-2xl">
-        {currentScreen === 'splash' && (
-          <SplashScreen onComplete={() => setCurrentScreen('onboarding')} />
+    <div className={`${isDarkMode ? "dark bg-gray-900" : "bg-gray-50"} min-h-screen`}>
+      {/* MOBILE FRAME */}
+      <div className="max-w-[360px] mx-auto min-h-screen bg-white dark:bg-gray-900 shadow-2xl relative overflow-hidden">
+
+        {currentScreen === "splash" && (
+          <SplashScreen onComplete={() => setCurrentScreen("onboarding")} />
         )}
-        
-        {currentScreen === 'onboarding' && (
-          <OnboardingScreens onComplete={() => setCurrentScreen('home')} />
+
+        {currentScreen === "onboarding" && (
+          <OnboardingScreens onComplete={() => setCurrentScreen("home")} />
         )}
-        
-        {currentScreen === 'home' && (
-          <HomeScreen 
+
+        {currentScreen === "home" && (
+          <HomeScreen
             onNavigate={setCurrentScreen}
-            onScan={(img) => {
-              setScannedImage(img);
-              setCurrentScreen('camera');
-            }}
+            onScan={() => setCurrentScreen("camera")}
+            scannedDocs={scannedDocs}
           />
         )}
-        
-        {currentScreen === 'camera' && (
-          <CameraScanScreen 
-            onBack={() => setCurrentScreen('home')}
+
+        {currentScreen === "camera" && (
+          <CameraScanScreen
+            onBack={() => setCurrentScreen("home")}
             onCapture={(img) => {
-              setScannedImage(img);
-              setCurrentScreen('edit');
+              handleNewScan(img);
+              setCurrentScreen("edit");
             }}
           />
         )}
-        
-        {currentScreen === 'edit' && (
-          <EditDocumentScreen 
-            image={scannedImage}
-            onBack={() => setCurrentScreen('camera')}
-            onNext={() => setCurrentScreen('pdf-preview')}
+
+        {currentScreen === "edit" && activeImage && (
+          <EditDocumentScreen
+            image={activeImage}
+            onBack={() => setCurrentScreen("camera")}
+            onNext={(editedImage) => {
+              setActiveImage(editedImage);
+              setCurrentScreen("pdf-preview");
+            }}
           />
         )}
-        
-        {currentScreen === 'pdf-preview' && (
-          <PDFPreviewScreen 
-            onBack={() => setCurrentScreen('edit')}
-            onSave={() => setCurrentScreen('save-share')}
+
+        {currentScreen === "pdf-preview" && activeImage && (
+          <PDFPreviewScreen
+            images={[activeImage]}
+            onBack={() => setCurrentScreen("edit")}
+            onSave={async (name, images) => {
+              const url = await generatePDF(images);
+              setPdfUrl(url);
+              setFileName(name);
+              setCurrentScreen("save-share");
+            }}
           />
         )}
-        
-        {currentScreen === 'save-share' && (
-          <SaveShareScreen 
-            onBack={() => setCurrentScreen('pdf-preview')}
-            onComplete={() => setCurrentScreen('home')}
+
+        {currentScreen === "save-share" && (
+          <SaveShareScreen
+            pdfUrl={pdfUrl}
+            fileName={fileName}
+            onBack={() => setCurrentScreen("pdf-preview")}
+            onComplete={() => setCurrentScreen("home")}
           />
         )}
-        
-        {currentScreen === 'settings' && (
-          <SettingsScreen 
+
+        {currentScreen === "settings" && (
+          <SettingsScreen
             isDarkMode={isDarkMode}
-            onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
-            onBack={() => setCurrentScreen('home')}
+            onToggleDarkMode={() => setIsDarkMode(v => !v)}
+            onBack={() => setCurrentScreen("home")}
           />
         )}
+
       </div>
     </div>
   );

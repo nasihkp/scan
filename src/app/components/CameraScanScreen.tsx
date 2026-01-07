@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { X, Zap, Image as ImageIcon, ScanLine } from 'lucide-react';
+import { useEffect, useRef, useState } from "react";
+import { X, Zap, SwitchCamera } from "lucide-react";
 
 interface CameraScanScreenProps {
   onBack: () => void;
@@ -7,95 +7,152 @@ interface CameraScanScreenProps {
 }
 
 export function CameraScanScreen({ onBack, onCapture }: CameraScanScreenProps) {
-  const [flashEnabled, setFlashEnabled] = useState(false);
-  const [autoScan, setAutoScan] = useState(true);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const handleCapture = () => {
-    // Simulate capturing an image
-    onCapture('captured-document');
+  const [stream, setStream] = useState<MediaStream | null>(null);
+  const [facingMode, setFacingMode] = useState<"user" | "environment">(
+    "environment"
+  );
+  const [flash, setFlash] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [capturing, setCapturing] = useState(false);
+
+  /* ================= START CAMERA ================= */
+  useEffect(() => {
+    let activeStream: MediaStream;
+
+    const startCamera = async () => {
+      try {
+        if (stream) stream.getTracks().forEach(t => t.stop());
+
+        activeStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode },
+        });
+
+        setStream(activeStream);
+
+        if (videoRef.current) {
+          videoRef.current.srcObject = activeStream;
+          videoRef.current.setAttribute("playsinline", "");
+          videoRef.current.muted = true;
+          await videoRef.current.play();
+        }
+        setError(null);
+      } catch (err) {
+        console.error(err);
+        setError("Camera access denied or unavailable");
+      }
+    };
+
+    startCamera();
+
+    return () => {
+      activeStream?.getTracks().forEach(t => t.stop());
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [facingMode]);
+
+  /* ================= TORCH ================= */
+  useEffect(() => {
+    if (!stream) return;
+
+    const track = stream.getVideoTracks()[0];
+    const cap: any = track.getCapabilities?.();
+
+    if (cap?.torch) {
+      track
+        .applyConstraints({ advanced: [{ torch: flash } as any] })
+        .catch(() => { });
+    }
+  }, [flash, stream]);
+
+  /* ================= CAPTURE ================= */
+  const capture = () => {
+    if (!videoRef.current || !canvasRef.current) return;
+
+    setCapturing(true);
+
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    const image = canvas.toDataURL("image/jpeg", 0.95);
+    onCapture(image);
+
+    setTimeout(() => setCapturing(false), 150);
   };
 
+  /* ================= UI ================= */
+  if (error) {
+    return (
+      <div className="h-screen bg-black flex items-center justify-center text-white">
+        {error}
+      </div>
+    );
+  }
+
   return (
-    <div className="h-screen w-full bg-black relative">
-      {/* Camera preview simulation */}
-      <div className="absolute inset-0 bg-gradient-to-br from-gray-900 to-gray-800">
-        <div className="w-full h-full flex items-center justify-center">
-          <div className="text-center">
-            <ScanLine className="w-16 h-16 text-white/40 mx-auto mb-4" />
-            <p className="text-white/60 text-sm">Camera Preview</p>
-            <p className="text-white/40 text-xs mt-1">Position document within frame</p>
-          </div>
-        </div>
+    <div className="relative h-screen bg-black overflow-hidden">
+      <canvas ref={canvasRef} className="hidden" />
 
-        {/* Document detection frame overlay */}
-        <div className="absolute inset-0 flex items-center justify-center p-8">
-          <div className="w-full h-[60%] border-2 border-blue-500 rounded-lg relative">
-            {/* Corner indicators */}
-            <div className="absolute -top-1 -left-1 w-6 h-6 border-t-4 border-l-4 border-blue-500 rounded-tl-lg"></div>
-            <div className="absolute -top-1 -right-1 w-6 h-6 border-t-4 border-r-4 border-blue-500 rounded-tr-lg"></div>
-            <div className="absolute -bottom-1 -left-1 w-6 h-6 border-b-4 border-l-4 border-blue-500 rounded-bl-lg"></div>
-            <div className="absolute -bottom-1 -right-1 w-6 h-6 border-b-4 border-r-4 border-blue-500 rounded-br-lg"></div>
-          </div>
-        </div>
+      {capturing && (
+        <div className="absolute inset-0 bg-white opacity-70 z-50" />
+      )}
 
-        {autoScan && (
-          <div className="absolute top-20 left-0 right-0 flex justify-center">
-            <div className="bg-green-500 text-white px-4 py-2 rounded-full text-sm font-medium flex items-center gap-2">
-              <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
-              Auto-Scan Active
-            </div>
-          </div>
-        )}
-      </div>
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        muted
+        className="absolute inset-0 w-full h-full object-cover"
+      />
 
-      {/* Top controls */}
-      <div className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between z-10">
-        <button 
-          onClick={onBack}
-          className="w-10 h-10 bg-black/50 backdrop-blur-sm rounded-full flex items-center justify-center"
-        >
-          <X className="w-6 h-6 text-white" />
-        </button>
-
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setFlashEnabled(!flashEnabled)}
-            className={`w-10 h-10 backdrop-blur-sm rounded-full flex items-center justify-center ${
-              flashEnabled ? 'bg-blue-500' : 'bg-black/50'
-            }`}
-          >
-            <Zap className={`w-5 h-5 ${flashEnabled ? 'text-white fill-white' : 'text-white'}`} />
-          </button>
-
-          <button
-            onClick={() => setAutoScan(!autoScan)}
-            className={`px-4 h-10 backdrop-blur-sm rounded-full flex items-center justify-center gap-2 ${
-              autoScan ? 'bg-green-500' : 'bg-black/50'
-            }`}
-          >
-            <ScanLine className="w-4 h-4 text-white" />
-            <span className="text-white text-sm font-medium">Auto</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Bottom controls */}
-      <div className="absolute bottom-0 left-0 right-0 p-6 pb-8 flex items-center justify-between z-10">
-        {/* Gallery button */}
-        <button className="w-14 h-14 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
-          <ImageIcon className="w-6 h-6 text-white" />
-        </button>
-
-        {/* Capture button */}
+      {/* TOP BAR */}
+      <div className="absolute top-0 left-0 right-0 p-4 flex justify-between z-20">
         <button
-          onClick={handleCapture}
-          className="w-20 h-20 bg-white rounded-full flex items-center justify-center shadow-2xl hover:scale-105 transition-transform"
+          onClick={onBack}
+          className="bg-black/50 p-2 rounded-full"
         >
-          <div className="w-16 h-16 bg-blue-600 rounded-full"></div>
+          <X className="text-white" />
         </button>
 
-        {/* Placeholder for balance */}
-        <div className="w-14 h-14"></div>
+        <div className="flex gap-3">
+          <button
+            onClick={() => setFlash(f => !f)}
+            className={`p-2 rounded-full ${flash ? "bg-yellow-400 text-black" : "bg-black/50 text-white"
+              }`}
+          >
+            <Zap />
+          </button>
+
+          <button
+            onClick={() =>
+              setFacingMode(m => (m === "user" ? "environment" : "user"))
+            }
+            className="bg-black/50 p-2 rounded-full"
+          >
+            <SwitchCamera className="text-white" />
+          </button>
+        </div>
+      </div>
+
+      {/* CAPTURE BUTTON */}
+      <div className="absolute bottom-10 left-0 right-0 flex justify-center z-20">
+        <button
+          onClick={capture}
+          disabled={capturing}
+          className="w-20 h-20 rounded-full border-4 border-white flex items-center justify-center active:scale-95"
+        >
+          <div className="w-14 h-14 bg-white rounded-full" />
+        </button>
       </div>
     </div>
   );

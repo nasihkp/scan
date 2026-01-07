@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { Camera, Crop, FileText, Share2, ChevronRight } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Camera, Crop, FileText, ChevronRight } from 'lucide-react';
 
 interface OnboardingScreensProps {
   onComplete: () => void;
@@ -46,7 +46,7 @@ export function OnboardingScreens({ onComplete }: OnboardingScreensProps) {
     <div className="h-screen w-full bg-white flex flex-col">
       {/* Skip button */}
       <div className="flex justify-end p-4">
-        <button 
+        <button
           onClick={handleSkip}
           className="text-gray-500 hover:text-gray-700 text-sm font-medium"
         >
@@ -93,11 +93,10 @@ export function OnboardingScreens({ onComplete }: OnboardingScreensProps) {
           {screens.map((_, index) => (
             <div
               key={index}
-              className={`h-2 rounded-full transition-all duration-300 ${
-                index === currentIndex 
-                  ? 'w-8 bg-blue-600' 
-                  : 'w-2 bg-gray-300'
-              }`}
+              className={`h-2 rounded-full transition-all duration-300 ${index === currentIndex
+                ? 'w-8 bg-blue-600'
+                : 'w-2 bg-gray-300'
+                }`}
             />
           ))}
         </div>
